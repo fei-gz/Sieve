@@ -15,28 +15,32 @@
         #app-content { display: none; }
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "three": "https://esm.sh/three@^0.182.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "@react-three/fiber": "https://esm.sh/@react-three/fiber@^9.5.0",
-    "@react-three/drei": "https://esm.sh/@react-three/drei@^10.7.7",
-    "@react-three/cannon": "https://esm.sh/@react-three/cannon@^6.6.0"
-  }
-}
-</script>
-</head>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@^19.2.3",
+        "react-dom": "https://esm.sh/react-dom@^19.2.3",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "three": "https://esm.sh/three@^0.182.0",
+        "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@^9.5.0",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@^10.7.7",
+        "@react-three/cannon": "https://esm.sh/@react-three/cannon@^6.6.0"
+      }
+    }
+    </script>
+  </head>
   <body>
     <div id="root"></div>
     <div id="landscape-warning" class="fixed inset-0 z-50 bg-black text-white flex-col items-center justify-center p-8 text-center">
-      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v10H3V7h18zm-2-4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><path d="M12 11h.01"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 7v10H3V7h18zm-2-4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"></path>
+        <path d="M12 11h.01"></path>
+      </svg>
       <h2 class="text-2xl font-bold mt-4">Please Rotate Device</h2>
       <p class="mt-2 text-gray-400">This game requires landscape mode.</p>
     </div>
-    <script type="module" src="./index.tsx">
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
