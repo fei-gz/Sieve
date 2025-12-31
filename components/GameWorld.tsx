@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Physics, useCompoundBody, useSphere, useBox } from '@react-three/cannon';
+import { Physics, useCompoundBody, useSphere, useBox, usePlane } from '@react-three/cannon';
 import { Sky, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { LevelConfig, LevelPhase, WeldedClusterData } from '../types';
@@ -45,9 +45,8 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
     const s = [];
     s.push({
       type: 'Cylinder',
-      args: [R, R, 0.5, 32],
-      position: [0, -0.25, 0],
-      rotation: [-Math.PI / 2, 0, 0] 
+      args: [R, R, 1.0, 32],
+      position: [0, -0.5, 0], 
     });
 
     const segments = 24;
@@ -71,6 +70,7 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
     type: 'Kinematic',
     position: [0, 0, 0],
     shapes: shapes,
+    friction: 0.1
   }));
 
   useFrame(() => {
@@ -100,8 +100,8 @@ const Stone = ({ position, id, onUpdate }: { position: [number, number, number],
     mass: 5,
     position,
     args: [0.8, 0.6, 0.8], 
-    linearDamping: 0.6,
-    angularDamping: 0.6,
+    linearDamping: 0.5,
+    angularDamping: 0.5,
   }));
   
   const scale = useMemo(() => [randomRange(0.8, 1.2), randomRange(0.8, 1.2), randomRange(0.8, 1.2)], []);
@@ -114,19 +114,19 @@ const Stone = ({ position, id, onUpdate }: { position: [number, number, number],
   return (
     <mesh ref={ref as any} castShadow receiveShadow scale={scale as [number, number, number]}>
       <dodecahedronGeometry args={[0.5, 0]} />
-      <meshStandardMaterial color="#607d8b" roughness={1} flatShading />
+      <meshStandardMaterial color="#78909c" roughness={1} flatShading />
     </mesh>
   );
 };
 
 const Bean = ({ position, color, onUpdate, id }: { position: [number, number, number], color: string, id: string, onUpdate: (id: string, pos: [number, number, number]) => void }) => {
   const [ref, api] = useSphere(() => ({
-    mass: 0.5,
+    mass: 0.4,
     position,
     args: [0.3],
-    linearDamping: 0.3,
-    angularDamping: 0.3,
-    material: { friction: 0.02, restitution: 0.5 }
+    linearDamping: 0.4,
+    angularDamping: 0.4,
+    material: { friction: 0.01, restitution: 0.3 }
   }));
 
   useEffect(() => {
@@ -154,8 +154,8 @@ const ClusterTrackerWrapper = ({ data, onUpdate }: { data: WeldedClusterData, on
     mass: 5 * data.stones.length,
     position: data.center,
     shapes: shapes,
-    linearDamping: 0.4,
-    angularDamping: 0.4,
+    linearDamping: 0.5,
+    angularDamping: 0.5,
   }));
 
   useEffect(() => {
@@ -267,7 +267,7 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
   const stones = phase === LevelPhase.GATHERING ? Array.from({ length: config.stoneCount }).map((_, i) => (
     <Stone 
       key={`stone-${i}`} id={`stone-${i}`}
-      position={[randomRange(-1.5, 1.5), 3 + i * 1.5, randomRange(-1.5, 1.5)]} 
+      position={[randomRange(-1.5, 1.5), 2 + i * 1.5, randomRange(-1.5, 1.5)]} 
       onUpdate={(id, pos) => (stonePositions.current[id] = pos)}
     />
   )) : null;
@@ -278,7 +278,7 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
     return (
       <Bean 
         key={`bean-${i}`} id={`bean-${i}`}
-        position={[randomRange(-2, 2), 6 + i * 0.4, randomRange(-2, 2)]}
+        position={[randomRange(-2, 2), 5 + i * 0.4, randomRange(-2, 2)]}
         color={color}
         onUpdate={(id, pos) => (beanPositions.current[id] = pos)}
       />
@@ -307,34 +307,39 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
   );
 };
 
+const SafetyCatch = () => {
+  const [ref] = usePlane(() => ({
+    position: [0, -6, 0],
+    rotation: [-Math.PI / 2, 0, 0],
+  }));
+  return (
+    <mesh ref={ref as any} visible={false}>
+      <planeGeometry args={[100, 100]} />
+      <meshBasicMaterial color="red" transparent opacity={0.1} />
+    </mesh>
+  );
+};
+
 export default function GameWorld({ level, onLevelComplete, isPaused }: { level: number, onLevelComplete: () => void, isPaused: boolean }) {
   const [sieveRotation, setSieveRotation] = useState<[number, number, number]>([0, 0, 0]);
 
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       if (isPaused) return;
-
-      // Correction logic: mapping device orientation to physical rotation.
-      // Beta: tilt front/back (pitch). Gamma: tilt left/right (roll).
-      // Standard hold (portrait):
-      // beta -> rotation around Sieve's local X axis.
-      // gamma -> rotation around Sieve's local Z axis.
       const beta = e.beta || 0; 
       const gamma = e.gamma || 0; 
-
-      const tiltSensitivity = 1.0; // Moderate sensitivity for shaking feel
-      const maxTilt = 0.6; // Radians (~35 degrees)
+      const tiltSensitivity = 1.0; 
+      const maxTilt = 0.7; 
 
       const rotX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(beta) * tiltSensitivity, -maxTilt, maxTilt);
       const rotZ = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(-gamma) * tiltSensitivity, -maxTilt, maxTilt);
-
       setSieveRotation([rotX, 0, rotZ]);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (isPaused) return;
-      const rx = (e.clientY / window.innerHeight - 0.5) * 0.8; 
-      const rz = (e.clientX / window.innerWidth - 0.5) * -0.8;
+      const rx = (e.clientY / window.innerHeight - 0.5) * 1.0; 
+      const rz = (e.clientX / window.innerWidth - 0.5) * -1.0;
       setSieveRotation([rx, 0, rz]);
     };
 
@@ -348,10 +353,6 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
 
   return (
     <div className="w-full h-full">
-      {/* 
-          Camera adjusted for portrait but providing wide "landscape-like" coverage of the sieve.
-          FOV and position ensures the entire circular sieve is center frame.
-      */}
       <Canvas shadows camera={{ position: [0, 18, 2], fov: 42, near: 0.1, far: 100 }}>
         <Suspense fallback={null}>
           <Sky sunPosition={[100, 20, 100]} />
@@ -359,14 +360,15 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
           <directionalLight position={[10, 20, 10]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
           <pointLight position={[-10, 10, -10]} intensity={0.5} />
 
-          <Physics gravity={[0, -25, 0]} iterations={15}>
+          <Physics gravity={[0, -25, 0]} iterations={20}>
             <Sieve rotation={sieveRotation} />
+            <SafetyCatch />
             {!isPaused && <GameManager level={level} onLevelComplete={onLevelComplete} />}
           </Physics>
 
-          <mesh position={[0, -5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[100, 100]} />
-            <meshBasicMaterial color="#000" />
+          <mesh position={[0, -10, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[200, 200]} />
+            <meshBasicMaterial color="#050505" />
           </mesh>
         </Suspense>
       </Canvas>
