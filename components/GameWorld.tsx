@@ -43,10 +43,11 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
 
   const shapes: any[] = useMemo(() => {
     const s = [];
+    // Thick floor to prevent tunneling
     s.push({
       type: 'Cylinder',
-      args: [R, R, 1.0, 32],
-      position: [0, -0.5, 0], 
+      args: [R, R, 2.0, 32],
+      position: [0, -1.0, 0], 
     });
 
     const segments = 24;
@@ -57,8 +58,8 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
       const boxLen = (2 * Math.PI * R) / segments + 0.5;
       s.push({
         type: 'Box',
-        args: [0.5, WallHeight, boxLen],
-        position: [x, WallHeight / 2, z],
+        args: [0.6, WallHeight + 1.0, boxLen],
+        position: [x, (WallHeight / 2), z],
         rotation: [0, -angle, 0]
       });
     }
@@ -70,7 +71,8 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
     type: 'Kinematic',
     position: [0, 0, 0],
     shapes: shapes,
-    friction: 0.1
+    friction: 0.3,
+    restitution: 0.1
   }));
 
   useFrame(() => {
@@ -79,14 +81,17 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
 
   return (
     <group ref={ref as any}>
+      {/* Visual Floor */}
       <mesh receiveShadow castShadow position={[0, -0.25, 0]}>
         <cylinderGeometry args={[R, R, 0.5, 64]} />
         <meshStandardMaterial color="#3e2723" roughness={0.7} />
       </mesh>
+      {/* Visual Walls */}
       <mesh position={[0, WallHeight/2, 0]}>
          <cylinderGeometry args={[R, R, WallHeight, 64, 1, true]} />
          <meshStandardMaterial color="#4e342e" side={THREE.DoubleSide} />
       </mesh>
+      {/* Visual Rim */}
       <mesh position={[0, WallHeight, 0]} rotation={[Math.PI/2, 0, 0]}>
         <torusGeometry args={[R, 0.2, 16, 64]} />
         <meshStandardMaterial color="#5d4037" roughness={0.5} />
@@ -100,8 +105,9 @@ const Stone = ({ position, id, onUpdate }: { position: [number, number, number],
     mass: 5,
     position,
     args: [0.8, 0.6, 0.8], 
-    linearDamping: 0.5,
-    angularDamping: 0.5,
+    linearDamping: 0.6,
+    angularDamping: 0.6,
+    friction: 0.4
   }));
   
   const scale = useMemo(() => [randomRange(0.8, 1.2), randomRange(0.8, 1.2), randomRange(0.8, 1.2)], []);
@@ -121,12 +127,12 @@ const Stone = ({ position, id, onUpdate }: { position: [number, number, number],
 
 const Bean = ({ position, color, onUpdate, id }: { position: [number, number, number], color: string, id: string, onUpdate: (id: string, pos: [number, number, number]) => void }) => {
   const [ref, api] = useSphere(() => ({
-    mass: 0.4,
+    mass: 0.5,
     position,
     args: [0.3],
-    linearDamping: 0.4,
-    angularDamping: 0.4,
-    material: { friction: 0.01, restitution: 0.3 }
+    linearDamping: 0.5,
+    angularDamping: 0.5,
+    material: { friction: 0.1, restitution: 0.2 }
   }));
 
   useEffect(() => {
@@ -154,8 +160,9 @@ const ClusterTrackerWrapper = ({ data, onUpdate }: { data: WeldedClusterData, on
     mass: 5 * data.stones.length,
     position: data.center,
     shapes: shapes,
-    linearDamping: 0.5,
-    angularDamping: 0.5,
+    linearDamping: 0.6,
+    angularDamping: 0.6,
+    friction: 0.4
   }));
 
   useEffect(() => {
@@ -309,7 +316,7 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
 
 const SafetyCatch = () => {
   const [ref] = usePlane(() => ({
-    position: [0, -6, 0],
+    position: [0, -8, 0],
     rotation: [-Math.PI / 2, 0, 0],
   }));
   return (
@@ -328,8 +335,8 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
       if (isPaused) return;
       const beta = e.beta || 0; 
       const gamma = e.gamma || 0; 
-      const tiltSensitivity = 1.0; 
-      const maxTilt = 0.7; 
+      const tiltSensitivity = 1.2; 
+      const maxTilt = 0.8; 
 
       const rotX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(beta) * tiltSensitivity, -maxTilt, maxTilt);
       const rotZ = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(-gamma) * tiltSensitivity, -maxTilt, maxTilt);
@@ -353,20 +360,20 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
 
   return (
     <div className="w-full h-full">
-      <Canvas shadows camera={{ position: [0, 18, 2], fov: 42, near: 0.1, far: 100 }}>
+      <Canvas shadows camera={{ position: [0, 20, 4], fov: 40, near: 0.1, far: 100 }}>
         <Suspense fallback={null}>
           <Sky sunPosition={[100, 20, 100]} />
-          <ambientLight intensity={0.8} />
+          <ambientLight intensity={1.0} />
           <directionalLight position={[10, 20, 10]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
           <pointLight position={[-10, 10, -10]} intensity={0.5} />
 
-          <Physics gravity={[0, -25, 0]} iterations={20}>
+          <Physics gravity={[0, -30, 0]} iterations={30} tolerance={0.001}>
             <Sieve rotation={sieveRotation} />
             <SafetyCatch />
             {!isPaused && <GameManager level={level} onLevelComplete={onLevelComplete} />}
           </Physics>
 
-          <mesh position={[0, -10, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh position={[0, -12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[200, 200]} />
             <meshBasicMaterial color="#050505" />
           </mesh>
