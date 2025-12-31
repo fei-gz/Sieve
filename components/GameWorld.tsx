@@ -1,13 +1,12 @@
 import React, { Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Physics, useCompoundBody, useSphere, useBox } from '@react-three/cannon';
-import { Environment, Sky, Text } from '@react-three/drei';
+import { Environment, Sky, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { LevelConfig, LevelPhase, WeldedClusterData } from '../types';
 import { generateLevelConfig, checkConnectivity, randomRange } from '../utils';
 
 // Fix for missing JSX intrinsic elements types
-// We need to augment both React.JSX and global.JSX to cover different TS/React versions
 declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
@@ -89,12 +88,10 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
   const WallThickness = 0.5;
 
   // Generate physics shapes
-  // Floor: We use a Cylinder rotated to be flat. 
-  // Walls: Approximate a hollow cylinder with a ring of boxes for better collision stability with beans
   const shapes: any[] = useMemo(() => {
     const s = [];
     
-    // Floor (Cylinder in Cannon is Z-aligned)
+    // Floor
     s.push({
       type: 'Cylinder',
       args: [R, R, 0.5, 32],
@@ -132,20 +129,16 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
 
   return (
     <group ref={ref as any}>
-      {/* Floor Visual */}
       <mesh receiveShadow castShadow position={[0, -0.25, 0]}>
         <cylinderGeometry args={[R, R, 0.5, 64]} />
         <meshStandardMaterial color="#5d4037" roughness={0.6} />
       </mesh>
       
-      {/* Inner Wall Visual (Hollow Cylinder look) */}
       <mesh position={[0, WallHeight/2, 0]}>
-         {/* We simulate the wall with a double-sided cylinder for the inside face */}
          <cylinderGeometry args={[R, R, WallHeight, 64, 1, true]} />
          <meshStandardMaterial color="#6d4c41" side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Rim Visual (Torus for a smooth top edge) */}
       <mesh position={[0, WallHeight, 0]} rotation={[Math.PI/2, 0, 0]}>
         <torusGeometry args={[R, 0.2, 16, 64]} />
         <meshStandardMaterial color="#8d6e63" roughness={0.5} />
@@ -159,12 +152,11 @@ const Stone = ({ position, id, onUpdate }: { position: [number, number, number],
   const [ref, api] = useBox(() => ({
     mass: 5,
     position,
-    args: [0.8, 0.6, 0.8], // Irregularish box
+    args: [0.8, 0.6, 0.8], 
     linearDamping: 0.5,
     angularDamping: 0.5,
   }));
   
-  // Random slight visual variation
   const scale = useMemo(() => [randomRange(0.8, 1.2), randomRange(0.8, 1.2), randomRange(0.8, 1.2)], []);
 
   useEffect(() => {
@@ -176,7 +168,6 @@ const Stone = ({ position, id, onUpdate }: { position: [number, number, number],
 
   return (
     <mesh ref={ref as any} castShadow receiveShadow scale={scale as [number, number, number]}>
-      {/* Dodecahedron looks like a low-poly stone */}
       <dodecahedronGeometry args={[0.5, 0]} />
       <meshStandardMaterial color="#78909c" roughness={0.9} flatShading />
     </mesh>
@@ -185,9 +176,6 @@ const Stone = ({ position, id, onUpdate }: { position: [number, number, number],
 
 // 3. Bean Component
 const Bean = ({ position, color, onUpdate, id }: { position: [number, number, number], color: string, id: string, onUpdate: (id: string, pos: [number, number, number]) => void }) => {
-  // Ellipsoid shape approximation with a sphere + scaling
-  // Physics body is a Sphere for performance, but we can use an Ellipsoid if we want stricter collision.
-  // Using Sphere is usually fine for "beans" unless they are very long.
   const [ref, api] = useSphere(() => ({
     mass: 0.8,
     position,
@@ -263,6 +251,9 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
   const connectedTime = useRef(0);
   const clearedTime = useRef(0);
 
+  // Since useCompoundBody is inside WeldedCluster, we need a way to get its live position.
+  const clusterPosRef = useRef<[number, number, number] | null>(null);
+
   // Initialization
   useEffect(() => {
     setConfig(generateLevelConfig(level));
@@ -272,32 +263,8 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
     beanPositions.current = {};
     connectedTime.current = 0;
     clearedTime.current = 0;
+    clusterPosRef.current = null;
   }, [level]);
-
-  // Game Loop Logic
-  useFrame((state, delta) => {
-    if (phase === LevelPhase.GATHERING) {
-      const ids = Object.keys(stonePositions.current);
-      if (ids.length === config.stoneCount) {
-        // Threshold: 1.8 units 
-        const isConnected = checkConnectivity(stonePositions.current, ids, 1.8);
-        
-        if (isConnected) {
-          connectedTime.current += delta;
-        } else {
-          connectedTime.current = 0;
-        }
-
-        // If connected for 1.5 seconds, weld!
-        if (connectedTime.current > 1.5) {
-          handleWeld();
-        }
-      }
-    }
-  });
-
-  // Since useCompoundBody is inside WeldedCluster, we need a way to get its live position.
-  const clusterPosRef = useRef<[number, number, number] | null>(null);
 
   const handleWeld = () => {
     const ids = Object.keys(stonePositions.current);
@@ -323,7 +290,7 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
       if (dist > maxDist) maxDist = dist;
       return {
         offset: [x - cx, y - cy, z - cz] as [number, number, number],
-        rotation: [0, 0, 0] as [number, number, number], // Simplified rotation
+        rotation: [0, 0, 0] as [number, number, number],
         scale: 1
       };
     });
@@ -333,15 +300,31 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
     setPhase(LevelPhase.CLEARING);
   };
 
-  // Logic to check win condition in Clearing phase
-  const CheckWinCondition = () => {
-    useFrame((state, delta) => {
-      if (phase !== LevelPhase.CLEARING || !weldedData || !clusterPosRef.current) return;
-      
+  // Game Loop Logic
+  useFrame((state, delta) => {
+    // --- GATHERING PHASE ---
+    if (phase === LevelPhase.GATHERING) {
+      const ids = Object.keys(stonePositions.current);
+      if (ids.length === config.stoneCount) {
+        // Threshold: 1.8 units 
+        const isConnected = checkConnectivity(stonePositions.current, ids, 1.8);
+        
+        if (isConnected) {
+          connectedTime.current += delta;
+        } else {
+          connectedTime.current = 0;
+        }
+
+        // If connected for 1.5 seconds, weld!
+        if (connectedTime.current > 1.5) {
+          handleWeld();
+        }
+      }
+    }
+
+    // --- CLEARING PHASE ---
+    if (phase === LevelPhase.CLEARING && weldedData && clusterPosRef.current) {
       const clusterPos = new THREE.Vector3(...clusterPosRef.current);
-      // Project to 2D plane (XZ) for fairer clearing judgement? Or keep 3D. 
-      // The prompt says "circular bounding frame", implying 2D projection on the sieve.
-      // We will use 2D distance on XZ plane to be more forgiving if beans jump over.
       
       const beanIds = Object.keys(beanPositions.current);
       let allOutside = true;
@@ -368,9 +351,8 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
       if (clearedTime.current > 2.0) {
         onLevelComplete();
       }
-    });
-    return null;
-  };
+    }
+  });
 
   // Generate Stones
   const stones = [];
@@ -413,20 +395,20 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
         />
       )}
       {beans}
-      <CheckWinCondition />
       
       {/* UI Helper Text in 3D Space */}
-      <group position={[0, 4, -5]} rotation={[0.4, 0, 0]}>
-         {phase === LevelPhase.GATHERING ? (
-            <Text fontSize={0.6} color="#fb8c00" outlineWidth={0.02} outlineColor="#3e2723">
-              Tilt to Gather Stones!
-            </Text>
-         ) : (
-            <Text fontSize={0.6} color="#43a047" outlineWidth={0.02} outlineColor="#1b5e20">
-              Clear Beans from the Aura!
-            </Text>
-         )}
-      </group>
+      <Html position={[0, 4, -5]} center transform pointerEvents="none" zIndexRange={[100, 0]}>
+        <div style={{
+          fontSize: '2rem',
+          fontWeight: 'bold',
+          color: phase === LevelPhase.GATHERING ? '#fb8c00' : '#43a047',
+          textShadow: '2px 2px 0px #000, 0 0 10px rgba(0,0,0,0.5)',
+          whiteSpace: 'nowrap',
+          fontFamily: 'sans-serif'
+        }}>
+           {phase === LevelPhase.GATHERING ? 'Tilt to Gather Stones!' : 'Clear Beans from the Aura!'}
+        </div>
+      </Html>
     </>
   );
 };
