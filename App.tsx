@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { GamePhase } from './types';
 import GameWorld from './components/GameWorld';
@@ -51,7 +52,8 @@ export default function App() {
 
     // Attempt to hide address bar on mobile
     try {
-      window.scrollTo(0, 1);
+      // Accessing scrollTo via any cast to bypass Window type issues
+      (window as any).scrollTo(0, 1);
     } catch (e) {}
 
     // Transition to playing
