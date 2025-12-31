@@ -42,9 +42,9 @@ const SievePhysics = () => {
 
   const shapes = useMemo(() => {
     const s = [];
-    // Static massive floor
+    // Floor (Static)
     s.push({ type: 'Box', args: [R * 2.5, 10.0, R * 2.5], position: [0, -5.0, 0] });
-    // Static walls
+    // Wall (Static circle approximations)
     const segments = 64;
     for (let i = 0; i < segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
@@ -66,7 +66,7 @@ const SievePhysics = () => {
     type: 'Static',
     position: [0, 0, 0],
     shapes: shapes,
-    friction: 1.0,
+    friction: 0.8,
     restitution: 0.0
   }));
 
@@ -83,7 +83,7 @@ const Stone = ({ position, id, onUpdate, isConnected, isFullyConnected }: {
     args: [0.8, 0.6, 0.8], 
     linearDamping: 0.7, 
     angularDamping: 0.8,
-    friction: 1.5, // High friction for realistic sliding threshold
+    friction: 1.5, // Significant friction to require tilt threshold for movement
     restitution: 0.05
   }));
   
@@ -91,7 +91,6 @@ const Stone = ({ position, id, onUpdate, isConnected, isFullyConnected }: {
 
   useEffect(() => {
     const unsub = api.position.subscribe((v) => {
-      // Escape recovery
       if (v[1] < -4) {
         api.position.set(randomRange(-1, 1), 6, randomRange(-1, 1));
         api.velocity.set(0, 0, 0);
@@ -283,39 +282,35 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
     }
   });
 
-  const stones = phase === LevelPhase.GATHERING ? Array.from({ length: config.stoneCount }).map((_, i) => (
-    <Stone 
-      key={`stone-${i}`} id={`stone-${i}`}
-      position={[randomRange(-1.5, 1.5), 3 + i * 1.5, randomRange(-1.5, 1.5)]} 
-      onUpdate={(id, pos) => (stonePositions.current[id] = pos)}
-      isConnected={connectedIds.has(`stone-${i}`)}
-      isFullyConnected={isFullyConnected}
-    />
-  )) : null;
-
-  const beans = Array.from({ length: config.beanCount }).map((_, i) => {
-    const isType2 = config.beanTypes === 2 && i % 2 === 0;
-    const color = isType2 ? "#00e5ff" : "#ff3d00";
-    return (
-      <Bean 
-        key={`bean-${i}`} id={`bean-${i}`}
-        position={[randomRange(-3, 3), 6 + i * 0.45, randomRange(-3, 3)]}
-        color={color}
-        onUpdate={(id, pos) => (beanPositions.current[id] = pos)}
-      />
-    );
-  });
-
   return (
     <>
-      {stones}
+      {phase === LevelPhase.GATHERING && Array.from({ length: config.stoneCount }).map((_, i) => (
+        <Stone 
+          key={`stone-${i}`} id={`stone-${i}`}
+          position={[randomRange(-1.5, 1.5), 3 + i * 1.5, randomRange(-1.5, 1.5)]} 
+          onUpdate={(id, pos) => (stonePositions.current[id] = pos)}
+          isConnected={connectedIds.has(`stone-${i}`)}
+          isFullyConnected={isFullyConnected}
+        />
+      ))}
       {phase === LevelPhase.CLEARING && weldedData && (
         <ClusterTrackerWrapper 
           data={weldedData} 
           onUpdate={(pos) => clusterPosRef.current = pos} 
         />
       )}
-      {beans}
+      {Array.from({ length: config.beanCount }).map((_, i) => {
+        const isType2 = config.beanTypes === 2 && i % 2 === 0;
+        const color = isType2 ? "#00e5ff" : "#ff3d00";
+        return (
+          <Bean 
+            key={`bean-${i}`} id={`bean-${i}`}
+            position={[randomRange(-3, 3), 6 + i * 0.45, randomRange(-3, 3)]}
+            color={color}
+            onUpdate={(id, pos) => (beanPositions.current[id] = pos)}
+          />
+        );
+      })}
       <Html position={[0, 4, -4]} center transform pointerEvents="none">
         <div className="flex flex-col items-center gap-2 text-center pointer-events-none select-none">
           <div className={`px-10 py-4 backdrop-blur-3xl border border-white/20 rounded-full shadow-2xl transition-all duration-700 ${isFullyConnected ? 'bg-cyan-500/90 scale-105 shadow-cyan-500/50' : 'bg-black/90'}`}>
@@ -334,17 +329,17 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
   const targetGravity = useRef<[number, number, number]>([0, -40, 0]);
 
   useEffect(() => {
-    const baseG = -45;
-    const sensitivity = 55; // Adjust sensitivity of tilt force
+    const baseG = -50;
+    const sensitivity = 65; // High sensitivity for responsive physics
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
       if (isPaused) return;
-      const beta = e.beta || 0;  // -180 to 180 (X-axis tilt)
-      const gamma = e.gamma || 0; // -90 to 90 (Z-axis tilt)
+      // beta: X-tilt (-180 to 180), gamma: Y-tilt (-90 to 90)
+      const beta = e.beta || 0;
+      const gamma = e.gamma || 0;
       
-      // Convert degrees to force
-      const tiltX = THREE.MathUtils.clamp(gamma / 90, -1, 1);
-      const tiltZ = THREE.MathUtils.clamp(beta / 90, -1, 1);
+      const tiltX = THREE.MathUtils.clamp(gamma / 60, -1, 1);
+      const tiltZ = THREE.MathUtils.clamp((beta - 45) / 60, -1, 1); // 45deg offset for comfortable viewing
       
       targetGravity.current = [tiltX * sensitivity, baseG, tiltZ * sensitivity];
     };
@@ -364,7 +359,7 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
     };
   }, [isPaused]);
 
-  // Handle smooth gravity transitions to prevent physical glitches
+  // Smoothing gravity updates
   const GravityController = () => {
     useFrame((_, delta) => {
       if (isPaused) return;
@@ -380,7 +375,10 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
 
   return (
     <div className="w-full h-full bg-[#050505]">
-      <Canvas shadows camera={{ position: [0, 28, 0], fov: 45, near: 0.1, far: 200 }}>
+      <Canvas 
+        shadows 
+        camera={{ position: [0, 32, 0], fov: 40, near: 0.1, far: 200 }}
+      >
         <Suspense fallback={null}>
           <Sky sunPosition={[10, 20, 10]} turbidity={0.01} rayleigh={0.1} />
           <ambientLight intensity={2.5} />
@@ -389,7 +387,7 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
 
           <Physics 
             gravity={gravity} 
-            iterations={80} 
+            iterations={100} 
             tolerance={0.0000001}
             allowSleep={false}
           >
@@ -399,9 +397,8 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
             {!isPaused && <GameManager level={level} onLevelComplete={onLevelComplete} />}
           </Physics>
 
-          {/* Endless floor visual */}
           <mesh position={[0, -50, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[1000, 1000]} />
+            <planeGeometry args={[2000, 2000]} />
             <meshBasicMaterial color="#000" />
           </mesh>
         </Suspense>
