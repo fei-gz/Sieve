@@ -1,10 +1,4 @@
 // @ts-nocheck
-/* 
-  Fix: Suppressing multiple JSX intrinsic element errors (mesh, group, geometries, etc.) 
-  which occur because the local TypeScript environment is not correctly merging 
-  @react-three/fiber types into the global JSX namespace. 
-  The code is functionally correct for a React Three Fiber application.
-*/
 import React, { Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Physics, useCompoundBody, useSphere, useBox } from '@react-three/cannon';
@@ -320,16 +314,17 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
     const handleOrientation = (e: DeviceOrientationEvent) => {
       if (isPaused) return;
 
-      // Correction logic for XY swap issues:
-      // Beta: tilt front/back. In portrait, it's X rotation.
-      // Gamma: tilt left/right. In portrait, it's Z rotation.
+      // Correction logic: mapping device orientation to physical rotation.
+      // Beta: tilt front/back (pitch). Gamma: tilt left/right (roll).
+      // Standard hold (portrait):
+      // beta -> rotation around Sieve's local X axis.
+      // gamma -> rotation around Sieve's local Z axis.
       const beta = e.beta || 0; 
       const gamma = e.gamma || 0; 
 
-      const tiltSensitivity = 0.8;
-      const maxTilt = 0.5; // Radians (~30 deg)
+      const tiltSensitivity = 1.0; // Moderate sensitivity for shaking feel
+      const maxTilt = 0.6; // Radians (~35 degrees)
 
-      // Clamp and map based on standard portrait holding
       const rotX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(beta) * tiltSensitivity, -maxTilt, maxTilt);
       const rotZ = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(-gamma) * tiltSensitivity, -maxTilt, maxTilt);
 
@@ -353,14 +348,18 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
 
   return (
     <div className="w-full h-full">
-      <Canvas shadows camera={{ position: [0, 15, 5], fov: 45, near: 0.1, far: 100 }}>
+      {/* 
+          Camera adjusted for portrait but providing wide "landscape-like" coverage of the sieve.
+          FOV and position ensures the entire circular sieve is center frame.
+      */}
+      <Canvas shadows camera={{ position: [0, 18, 2], fov: 42, near: 0.1, far: 100 }}>
         <Suspense fallback={null}>
           <Sky sunPosition={[100, 20, 100]} />
           <ambientLight intensity={0.8} />
           <directionalLight position={[10, 20, 10]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
           <pointLight position={[-10, 10, -10]} intensity={0.5} />
 
-          <Physics gravity={[0, -20, 0]} iterations={15}>
+          <Physics gravity={[0, -25, 0]} iterations={15}>
             <Sieve rotation={sieveRotation} />
             {!isPaused && <GameManager level={level} onLevelComplete={onLevelComplete} />}
           </Physics>
