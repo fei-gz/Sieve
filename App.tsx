@@ -11,14 +11,14 @@ export default function App() {
   const [phase, setPhase] = useState<GamePhase>(GamePhase.MENU);
   const [mysticQuote, setMysticQuote] = useState("Sift the shadows, find the core.");
 
-  // Fetch a mystical quote from Gemini when entering the menu
   useEffect(() => {
     const fetchQuote = async () => {
+      if (!process.env.API_KEY) return;
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: 'Generate a one-sentence mystical zen proverb about a sieve and stones. No attribution, no quotation marks.',
+          contents: 'Generate a one-sentence mystical zen proverb about a sieve, stones and beans. No attribution, no quotation marks.',
         });
         if (response.text) {
           setMysticQuote(response.text.trim());
@@ -32,11 +32,30 @@ export default function App() {
     }
   }, [phase]);
 
-  const toggleFullScreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(e => {
-        console.error(`Error attempting to enable full-screen mode: ${e.message}`);
-      });
+  const startGame = async () => {
+    // Immediate feedback
+    setPhase(GamePhase.PLAYING);
+    
+    // Attempt fullscreen safely (iOS Safari often ignores this on body/doc)
+    try {
+      const doc = document.documentElement as any;
+      if (doc.requestFullscreen) {
+        doc.requestFullscreen().catch(() => {});
+      } else if (doc.webkitRequestFullscreen) {
+        doc.webkitRequestFullscreen();
+      }
+    } catch (e) {
+      // Ignore fullscreen errors
+    }
+    
+    // Request motion permission for iOS 13+
+    const DeviceOrientation = (window as any).DeviceOrientationEvent;
+    if (DeviceOrientation && typeof DeviceOrientation.requestPermission === 'function') {
+      try {
+        await DeviceOrientation.requestPermission();
+      } catch (e) {
+        console.warn("Motion permission denied:", e);
+      }
     }
   };
 
@@ -54,30 +73,10 @@ export default function App() {
     }
   };
 
-  const startGame = async () => {
-    toggleFullScreen();
-    
-    // Request permission for iOS 13+ devices
-    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-      try {
-        const response = await (DeviceOrientationEvent as any).requestPermission();
-        if (response === 'granted') {
-          setPhase(GamePhase.PLAYING);
-        } else {
-          setPhase(GamePhase.PLAYING);
-        }
-      } catch (e) {
-        setPhase(GamePhase.PLAYING);
-      }
-    } else {
-      setPhase(GamePhase.PLAYING);
-    }
-  };
-
   return (
     <div className="relative w-full h-full bg-gray-900 text-white font-sans overflow-hidden">
       
-      {/* 3D Game Layer */}
+      {/* 3D Game Layer - Only load when not in menu to save resources */}
       {phase !== GamePhase.MENU && (
         <GameWorld 
           level={level} 
@@ -88,7 +87,7 @@ export default function App() {
 
       {/* UI Overlays */}
       {phase === GamePhase.MENU && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-20 p-6">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-20 p-6">
           <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-600 text-center">
             Sieve & Stones
           </h1>
@@ -101,12 +100,12 @@ export default function App() {
           </p>
           <button 
             onClick={startGame}
-            className="flex items-center gap-2 px-8 py-4 bg-orange-600 hover:bg-orange-500 rounded-full text-xl font-bold transition-transform active:scale-95 shadow-lg shadow-orange-900/20"
+            className="flex items-center gap-2 px-8 py-4 bg-orange-600 hover:bg-orange-500 rounded-full text-xl font-bold transition-transform active:scale-95 shadow-lg shadow-orange-900/40"
           >
             <Play fill="currentColor" /> Start Game
           </button>
-          <p className="mt-6 text-xs text-gray-500 flex items-center gap-2">
-            Tilt your phone forward/back and left/right.
+          <p className="mt-6 text-xs text-gray-500 text-center">
+            Tilt your phone to sway the sieve.
           </p>
         </div>
       )}
@@ -128,10 +127,10 @@ export default function App() {
 
       {/* HUD */}
       {phase === GamePhase.PLAYING && (
-        <div className="absolute top-6 left-6 z-10 pointer-events-none">
+        <div className="absolute top-6 left-6 z-10 pointer-events-none select-none">
           <div className="text-xl font-bold drop-shadow-lg">LVL {level}</div>
-          <div className="text-xs text-gray-400 uppercase tracking-widest mt-1">
-             Sieve Stability: OK
+          <div className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">
+             Physics: ACTIVE
           </div>
         </div>
       )}

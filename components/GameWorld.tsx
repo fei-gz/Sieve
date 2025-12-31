@@ -43,7 +43,6 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
 
   const shapes: any[] = useMemo(() => {
     const s = [];
-    // Thick floor to prevent tunneling
     s.push({
       type: 'Cylinder',
       args: [R, R, 2.0, 32],
@@ -81,17 +80,14 @@ const Sieve = ({ rotation }: { rotation: [number, number, number] }) => {
 
   return (
     <group ref={ref as any}>
-      {/* Visual Floor */}
       <mesh receiveShadow castShadow position={[0, -0.25, 0]}>
         <cylinderGeometry args={[R, R, 0.5, 64]} />
         <meshStandardMaterial color="#3e2723" roughness={0.7} />
       </mesh>
-      {/* Visual Walls */}
       <mesh position={[0, WallHeight/2, 0]}>
          <cylinderGeometry args={[R, R, WallHeight, 64, 1, true]} />
          <meshStandardMaterial color="#4e342e" side={THREE.DoubleSide} />
       </mesh>
-      {/* Visual Rim */}
       <mesh position={[0, WallHeight, 0]} rotation={[Math.PI/2, 0, 0]}>
         <torusGeometry args={[R, 0.2, 16, 64]} />
         <meshStandardMaterial color="#5d4037" roughness={0.5} />
@@ -304,7 +300,7 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
       {beans}
       <Html position={[0, 4, -4]} center transform pointerEvents="none">
         <div style={{
-          fontSize: '1.2rem', fontWeight: 'bold', color: phase === LevelPhase.GATHERING ? '#ff9800' : '#4caf50',
+          fontSize: '1.1rem', fontWeight: 'bold', color: phase === LevelPhase.GATHERING ? '#ff9800' : '#4caf50',
           textShadow: '0 0 10px rgba(0,0,0,0.8)', whiteSpace: 'nowrap', fontFamily: 'sans-serif', textAlign: 'center'
         }}>
            {phase === LevelPhase.GATHERING ? 'SHAKE TO GATHER STONES' : 'SHAKE TO CLEAR BEANS'}
@@ -316,7 +312,7 @@ const GameManager = ({ level, onLevelComplete }: { level: number, onLevelComplet
 
 const SafetyCatch = () => {
   const [ref] = usePlane(() => ({
-    position: [0, -8, 0],
+    position: [0, -10, 0],
     rotation: [-Math.PI / 2, 0, 0],
   }));
   return (
@@ -333,10 +329,11 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       if (isPaused) return;
+      // Normalizing beta and gamma for natural feel
       const beta = e.beta || 0; 
       const gamma = e.gamma || 0; 
-      const tiltSensitivity = 1.2; 
-      const maxTilt = 0.8; 
+      const tiltSensitivity = 1.0; 
+      const maxTilt = 0.7; 
 
       const rotX = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(beta) * tiltSensitivity, -maxTilt, maxTilt);
       const rotZ = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(-gamma) * tiltSensitivity, -maxTilt, maxTilt);
@@ -345,8 +342,8 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
 
     const handleMouseMove = (e: MouseEvent) => {
       if (isPaused) return;
-      const rx = (e.clientY / window.innerHeight - 0.5) * 1.0; 
-      const rz = (e.clientX / window.innerWidth - 0.5) * -1.0;
+      const rx = (e.clientY / window.innerHeight - 0.5) * 0.8; 
+      const rz = (e.clientX / window.innerWidth - 0.5) * -0.8;
       setSieveRotation([rx, 0, rz]);
     };
 
@@ -360,20 +357,21 @@ export default function GameWorld({ level, onLevelComplete, isPaused }: { level:
 
   return (
     <div className="w-full h-full">
-      <Canvas shadows camera={{ position: [0, 20, 4], fov: 40, near: 0.1, far: 100 }}>
+      <Canvas shadows camera={{ position: [0, 18, 5], fov: 40, near: 0.1, far: 100 }}>
         <Suspense fallback={null}>
           <Sky sunPosition={[100, 20, 100]} />
           <ambientLight intensity={1.0} />
           <directionalLight position={[10, 20, 10]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
           <pointLight position={[-10, 10, -10]} intensity={0.5} />
 
-          <Physics gravity={[0, -30, 0]} iterations={30} tolerance={0.001}>
+          <Physics gravity={[0, -25, 0]} iterations={20} tolerance={0.001}>
             <Sieve rotation={sieveRotation} />
             <SafetyCatch />
             {!isPaused && <GameManager level={level} onLevelComplete={onLevelComplete} />}
           </Physics>
 
-          <mesh position={[0, -12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          {/* Deep background floor */}
+          <mesh position={[0, -15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[200, 200]} />
             <meshBasicMaterial color="#050505" />
           </mesh>
