@@ -1,0 +1,5 @@
+{
+  "name": "Sieve & Stones",
+  "description": "A physics-based 3D puzzle game. Shake the sieve to gather stones, weld them, and clear the beans. Levels increase in complexity.",
+  "requestFramePermissions": []
+}
